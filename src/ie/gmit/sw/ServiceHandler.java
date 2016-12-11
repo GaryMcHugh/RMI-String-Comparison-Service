@@ -3,6 +3,7 @@ package ie.gmit.sw;
 import java.io.*;
 import java.rmi.Naming;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.servlet.*;
 import javax.servlet.http.*;
@@ -13,6 +14,12 @@ public class ServiceHandler extends HttpServlet {
 	
 	private String remoteHost = null;
 	private static long jobNumber = 0;
+	
+	//declare the inQueue which is a LinkedList
+	private LinkedList<CreateObject> inQueue = new LinkedList<CreateObject>();
+	
+	//declare the outQueue which is a map containing jobNumber and resultator
+	private Map<String, Resultator> outQueue = new ConcurrentHashMap<String, Resultator>();
 
 	public void init() throws ServletException {
 		ServletContext ctx = getServletContext();
@@ -23,13 +30,15 @@ public class ServiceHandler extends HttpServlet {
 	//generate a random number for the jobNumber
 	public void random(){
 		 Random generator = new Random();
-		 jobNumber = generator.nextInt(34567890) + 10000; //set lowest 0f 10000
+		 jobNumber = generator.nextInt(34567890) + 10000; //set lowest of 10000
 		 //System.out.println(jobNumber);
 	}
 
 	public void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
 		resp.setContentType("text/html");
 		PrintWriter out = resp.getWriter();
+		
+		 boolean isProcessed = false;
 		
 		//Initialise some request variables with the submitted form info. These are local to this method and thread safe...
 		String algorithm = req.getParameter("cmbAlgorithm");
@@ -45,13 +54,38 @@ public class ServiceHandler extends HttpServlet {
 		if (taskNumber == null){
 			taskNumber = new String("T" + jobNumber);
 			jobNumber++;
-			//Add job to in-queue	
-			Queue <StringServiceImpl> inQueue = new LinkedList<StringServiceImpl>();
+			
+			//create an object to add to the linked list
+			CreateObject obj = new CreateObject();
+			 
+			//set each variable
+			obj.setAlgorithm(algorithm);
+			obj.setTaskNumber(taskNumber);
+			obj.setS(s);
+			obj.setT(t);
+			
 			StringServiceImpl ss = new StringServiceImpl();
-			inQueue.add(ss);
+			
+			//Add job to in-queue
+			inQueue.add(obj);
+			//print out inQueue to show object id
 			System.out.println(inQueue);
+			
+			//new instance of resultator
+			Resultator result = new ResultatorImpl();
+			//add the tasknumber and Resultator to the map(outQueue)
+			outQueue.put(taskNumber, result);
 		}else{
 			//Check out-queue for finished job
+			Resultator result = outQueue.get(taskNumber);
+			
+			//check if the task is complete
+			if(result != null && result.isProcessed() && result.getResult() != null){
+				//output the result to the user
+				System.out.println(result.getResult());
+				//remove the task from the map when it is complete
+				outQueue.remove(taskNumber);
+			}
 		}
 		
 		
